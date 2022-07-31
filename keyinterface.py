@@ -61,8 +61,10 @@ class KeyInterface:
             # update selected key (the same addresses on each channel, so no need to communicate with anything)
             self.selK = k
 
+    #read from currently selected key
     def read(self):
         self.i2c.readFrom(self.keyList[self.selK], self.bitResolution)
 
+    #write to currently selected key (for settings changes)
     def write(self, data):
         self.i2c.writeto(self.keyList[self.selK], data)
