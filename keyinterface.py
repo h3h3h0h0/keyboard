@@ -3,7 +3,7 @@ import mp as mp
 
 class KeyInterface:
     #initialization using a i2c, device address list, info etc.
-    def __init__(self, i2c, mp, ch, kpc, cl, kl):
+    def __init__(self, i2c, mp, ch, kpc, cl, kl, br):
         #initialization of some variables describing the structure
         self.i2c = i2c
         self.multiplexers = mp
@@ -19,7 +19,11 @@ class KeyInterface:
         self.channelList = cl
         self.keyList = kl
 
+        #sensor resolution (bits)
+        self.bitResolution = br
+
         #checking for all devices present
+        #UNFINISHED!
         self.mpList = self.i2c.scan()
         if len(self.mpList) != self.multiplexers: raise Exception("Incorrect number of multiplexers present!") #count the amount of discovered multiplexers
         self.disableAll()
@@ -56,3 +60,9 @@ class KeyInterface:
 
             # update selected key (the same addresses on each channel, so no need to communicate with anything)
             self.selK = k
+
+    def read(self):
+        self.i2c.readFrom(self.keyList[self.selK], self.bitResolution)
+
+    def write(self, data):
+        self.i2c.writeto(self.keyList[self.selK], data)
