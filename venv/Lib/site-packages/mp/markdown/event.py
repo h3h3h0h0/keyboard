@@ -1,0 +1,225 @@
+from mp.core.expression import Expression as Exp
+from mp.markdown.base import _BaseWriter
+
+
+class EventWriter(_BaseWriter):
+    """
+        The following code relies on the 'markdown' script.
+    """
+
+    USE_TOGGLE_NAME = False
+
+    def __init__(self, filename: str = None, level: int = _BaseWriter.LEVEL[-1]):
+        super().__init__(filename, level, 'mp')
+
+        self._vars = dict()
+        self._num_var = 0
+
+    def _draw_var(self, var):
+        if var is None:
+            return
+        if self._has_unique_name(var.symbol):
+            return
+
+        if var.is_variable:
+            if var.toward is not None:
+                if not var.toward.is_placeholder:
+                    self(self._encode(var))
+        if var.is_method_delegate and not var.is_method_defined and not var.is_builtins:
+            self(self._encode(var))
+
+    def _draw_vars(self, args):
+        for arg in args:
+            self._draw_var(arg)
+
+    def _encode_variable(self, var):
+        if var.toward is None:
+            return var.symbol
+        if var.toward.is_placeholder:
+            return var.symbol
+        cmd = self._encode(var.toward, lock=True)
+        self._new_var(None, var.symbol)
+        return cmd
+
+    def _encode_constant(self, var):
+        if hasattr(var, 'is_data'):
+            return self._command(Jem.OP_INT, var.encode())
+        return self._command(Jem.OP_INT, var)
+
+    def _encode_operator(self, var):
+        if var.op in Exp.IDX:
+            return self._encode_index(var)
+        if var.op in Exp.Tokens_Operator:
+            self._draw_vars([var.sub, var.obj])
+            sub = self._encode(var.sub)
+            obj = self._encode(var.obj)
+            op = var.op
+            if op in Exp.Tokens_In2Out.keys():
+                op = Exp.Tokens_In2Out[op]
+            return self._command(op, sub, obj)
+
+    def _encode_index(self, var):
+        def _index_encode(target):
+            if target is not None:
+                return self._encode(target)
+            return Jem.CODE_NONE
+
+        self._draw_vars([var.sub, var.obj, var.step])
+        sub = _index_encode(var.sub)
+        obj = _index_encode(var.obj)
+        step = _index_encode(var.step)
+        cmd = self._command('__index', sub, obj, step)
+        return cmd
+
+    def _encode_shell(self, op, var):
+        sub = self._encode(var.sub)
+        args = [self._encode(arg) for arg in var.args]
+        return self._command(op, sub, *args)
+
+    def _encode_indices(self, var):
+        return self._encode_shell('__shell_indices', var)
+
+    def _encode_transpose(self, var):
+        return self._encode_shell('__shell_transpose', var)
+
+    def _encode_view(self, var):
+        return self._encode_shell('__shell_view', var)
+
+    def _encode_tuple(self, var):
+        args = [self._encode(arg) for arg in var.args]
+        return self._command(Jem.OP_RETURN, *args)
+
+    def _encode_method(self, var):
+        repeat = self._encode(var.repeat) if var.repeat is not None else None
+        sub = self._encode(var.toward, lock=True)
+        args = [self._encode(arg) for arg in var.args]
+        return self._command(sub, *args, tags=repeat)
+
+    def _encode_method_delegate(self, var):
+        repeat = [self._encode(var.repeat)] if var.repeat is not None else []
+        tags = repeat + [Jem.CODE_DELEGATE]
+        cmd = self._encode(var.toward)
+        name = self._get_new_name() if var.name.startswith(Exp.CODE_CONST) else var.symbol
+        self._new_var(None, name)
+        self._set_unique_name(var.name, name)
+        cmd = self._command(cmd, tags=tags)
+        self(cmd)
+        return name
+
+    def _encode_method_defined(self, var):
+        if var.toward.is_variable:
+            if not self._has_unique_name(var.toward.symbol):
+                self(self._encode(var.toward))
+            var_return = var.toward.symbol
+        else:
+            var_return = self._encode(var.toward)
+        args, cmd = self._encode_method_defined_args(var.args)
+        name = self._encode_method_defined_return(args, var_return, cmd)
+        return name
+
+    def _encode_method_defined_args(self, graph_args):
+        size = self._new_var(None)
+        self(self._encode_constant(str(len(graph_args))))
+        args = [size]
+        cmd = list()
+        for i, arg in enumerate(graph_args):
+            name = '%s%d' % (Jem.CODE_ARG, i)
+            order = [self._encode(arg.toward)] if not arg.toward.is_placeholder else []
+            cmd.append(self._command(Jem.OP_INTERRUPT, arg.symbol, name, *order))
+        return args, '\n'.join(cmd)
+
+    def _encode_method_defined_return(self, args, var_return, args_cmd):
+        name = self._get_new_name()
+        self._new_var(None, name, *args)
+        cmd = self._command(Jem.OP_RETURN, var_return)
+        self(args_cmd)
+        self(cmd)
+        return name
+
+    def _encode(self, var, lock: bool = False):
+        if var.is_variable:
+            if self._has_unique_name(var.symbol):
+                return self._get_unique_name(var.symbol)
+            self._set_unique_name(var.symbol)
+            return self._encode_variable(var)
+
+        if var.is_builtins:
+            return var.symbol
+        if var.is_method_defined:
+            return self._encode_method_defined(var)
+
+        if var.is_method_delegate:
+            if self._has_unique_name(var.name):
+                return self._get_unique_name(var.name)
+            self._set_unique_name(var.symbol)
+            name = self._encode_method_delegate(var)
+            return name if lock else None
+
+        if var.is_method:
+            return self._encode_method(var)
+
+        if not lock:
+            return self._new_var(var)
+
+        if var.is_constant:
+            return self._encode_constant(var)
+        if var.is_indices:
+            return self._encode_indices(var)
+        if var.is_transpose:
+            return self._encode_transpose(var)
+        if var.is_view:
+            return self._encode_view(var)
+        if var.is_tuple:
+            return self._encode_tuple(var)
+        if var.is_operator:
+            return self._encode_operator(var)
+
+    def _new_var(self, var, name: str = None, *args, tags=None):
+        def _wrap_name():
+            return name if len(args) == 0 else '%s[%s]' % (name, ', '.join(args))
+
+        args = list(args) + self._get_tags(tags)
+        cmd = self._encode(var, lock=True) if var is not None else ''
+        if name is None:
+            name = self._get_new_name()
+            name = _wrap_name()
+            self('%s:' % name)
+            if var is not None:
+                self(cmd)
+        else:
+            name = _wrap_name()
+            self('%s:' % name)
+        return name
+
+    def _get_new_name(self):
+        new_name = '%s%d' % ('\\', self._num_var)
+        self._num_var += 1
+        return new_name
+
+    def _has_unique_name(self, name: str):
+        return name in self._vars.keys()
+
+    def _get_unique_name(self, name: str):
+        return self._vars[name]
+
+    def _set_unique_name(self, name: str, real_name: str = None):
+        real_name = name if real_name is None else real_name
+        self._vars[name] = real_name
+
+    @classmethod
+    def _command(cls, op: str, *args, tags=None):
+        tags = cls._get_tags(tags, op)
+        indent = ' ' if len(args) > 0 else ''
+        return '\t(%s)%s%s;' % (', '.join(tags), indent, ', '.join(args))
+
+    @classmethod
+    def _get_tags(cls, tags, op=None):
+        op = [op] if op is not None else []
+        if tags is None:
+            return op
+        elif not type(tags) is list:
+            return op + [tags]
+        return op + tags
+
+
+draw_event = EventWriter.draw
