@@ -3,7 +3,7 @@ import mp as mp
 
 class KeyInterface:
     #initialization using a i2c, device address list, info etc.
-    def __init__(self, i2c, mp, ch, kpc, cl, kl, br):
+    def __init__(self, i2c, mp, ch, kpc, cl, kl, br, nk):
         #initialization of some variables describing the structure
         self.i2c = i2c
         self.multiplexers = mp
@@ -21,6 +21,9 @@ class KeyInterface:
 
         #sensor resolution (bits)
         self.bitResolution = br
+
+        #number of keys (some multiplexers might not have a full set)
+        self.numKeys = nk
 
         #checking for all devices present
         #UNFINISHED!
@@ -63,8 +66,53 @@ class KeyInterface:
 
     #read from currently selected key
     def read(self):
-        self.i2c.readFrom(self.keyList[self.selK], self.bitResolution)
+        return self.i2c.readFrom(self.keyList[self.selK], self.bitResolution)
 
     #write to currently selected key (for settings changes)
     def write(self, data):
         self.i2c.writeto(self.keyList[self.selK], data)
+
+    #select the immediate next key
+    def selectNext(self):
+        #temp variables
+        m = self.selMP
+        c = self.selCH
+        k = self.selK
+
+        #increment key position
+        k += 1
+
+        #rolling over channel position
+        if k >= self.keysPerChannel:
+            k = 0
+            c += 1
+
+        #rolling over multiplexer position
+        if c >= self.channels:
+            c = 0
+            m += 1
+
+        #reaching last possible key
+        if m >= self.multiplexers:
+            m = 0
+
+        #select with updated values
+        self.select(m, c, k)
+
+    #read all key values and return as array
+    def readAll(self):
+        temp = []
+
+        #insurance, disable everything first
+        self.disableAll()
+
+        #start from first key and sequentially read
+        self.select(0, 0, 0)
+        for i in range(self.numKeys):
+            temp.append(self.read())
+            self.selectNext()
+
+        #reset to beginning
+        self.select(0, 0, 0)
+
+        return temp
