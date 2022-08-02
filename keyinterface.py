@@ -1,5 +1,4 @@
-import mp as mp
-
+from machine import I2C
 
 class KeyInterface:
     #initialization using a i2c, device address list, info etc.
@@ -113,6 +112,20 @@ class KeyInterface:
             self.selectNext()
 
         #reset to beginning
+        self.select(0, 0, 0)
+
+        return temp
+
+    #read a custom group of keys (e.g. WASD)
+    def readGroup(self, positions):
+        temp = []
+
+        #for each position select then read
+        for pos in positions:
+            self.select(pos[0], pos[1], pos[2])
+            temp.append(self.read())
+
+        #return to beginning
         self.select(0, 0, 0)
 
         return temp
