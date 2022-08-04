@@ -24,8 +24,7 @@ class KeyInterface:
         #number of keys (some multiplexers might not have a full set)
         self.numKeys = nk
 
-        #checking for all devices present
-        #UNFINISHED!
+        #checking for all multiplexers
         self.mpList = self.i2c.scan()
         if len(self.mpList) != self.multiplexers: raise Exception("Incorrect number of multiplexers present!") #count the amount of discovered multiplexers
         self.disableAll()
