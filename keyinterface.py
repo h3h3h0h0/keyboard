@@ -1,6 +1,6 @@
 from machine import I2C
 
-class KeyInterface:
+class DigitalHallInterface:
     #initialization using a i2c, device address list, info etc.
     def __init__(self, i2c, mp, ch, kpc, cl, kl, br, nk):
         #initialization of some variables describing the structure

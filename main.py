@@ -1,5 +1,5 @@
 from machine import I2C
-from keyinterface import KeyInterface
+from keyinterface import DigitalHallInterface
 
 #layout
 deviceNum = 4 #4 8-channel multiplexers each driving 32 keys (4 addresses per pin)
@@ -19,5 +19,5 @@ resolution = 0
 i2c = I2C(freq=400000)
 
 #initialize the actual interface
-KI = KeyInterface(i2c, deviceNum, channelNum, keysPerChannel, channelList, keyList, numKeys)
+KI = DigitalHallInterface(i2c, deviceNum, channelNum, keysPerChannel, channelList, keyList, numKeys)
 
