@@ -1,5 +1,6 @@
 from machine import I2C
 
+#interfacing directly with the digital hall effect sensor's outputs
 class DigitalHallInterface:
     #initialization using a i2c, device address list, info etc.
     def __init__(self, i2c, mp, ch, kpc, cl, kl, br, nk):
@@ -128,3 +129,6 @@ class DigitalHallInterface:
         self.select(0, 0, 0)
 
         return temp
+
+#for any kind of key switch that gives an on/off value
+class SwitchInterface:
