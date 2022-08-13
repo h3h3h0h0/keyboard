@@ -130,5 +130,37 @@ class DigitalHallInterface:
 
         return temp
 
-#for any kind of key switch that gives an on/off value
-class SwitchInterface:
+#for using the max7360 controller
+class M7360Interface:
+    def __init__(self, i2c, con, ca, kl):
+        #i2c instance and num of controllers
+        self.i2c = i2c
+        self.controllers = con
+
+        #lookups
+        self.contAdd = ca
+        self.keyList = kl
+
+    def read(self, c): #returns an array with 2 elements: key code and whether it was pressed or released
+        if c >= self.controllers or c < 0: return
+
+        data = self.i2c.readFrom(self.contAdd(c), 8)
+
+        em = data&(0b10000000) #leftmost bit is "empty flag"
+        re = data&(0b01000000) #second leftmost bit is "release flag"
+
+        key = int(data&(0b00111111)) #the other 6 bits contain the key number (0-63)
+
+        if key == 62 or key == 63: #the special cases are handled by key values 62 and 63
+            if not em: #this bit should be on for ALL normal key 62/63 presses
+                if re:
+                    if key == 63: return [-1, 0] #the overflow condition
+                    else: return [-1, 0] #dont understand the register table for this condition
+                else:
+                    if key == 63: return #return nothing because empty
+                    else: return #dont understand the table for this condition
+            else:
+                return [key, int(re)] #normal operation
+        else:
+            return [key, int(re)] #normal operation
+
