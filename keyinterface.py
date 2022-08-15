@@ -144,7 +144,7 @@ class M7360Interface:
     def read(self, c): #returns an array with 2 elements: key code and whether it was pressed or released
         if c >= self.controllers or c < 0: return
 
-        data = self.i2c.readFrom(self.contAdd(c), 8)
+        data = self.i2c.readFrom(self.contAdd[c], 8)
 
         em = data&(0b10000000) #leftmost bit is "empty flag"
         re = data&(0b01000000) #second leftmost bit is "release flag"
@@ -164,3 +164,24 @@ class M7360Interface:
         else:
             return [key, int(re)] #normal operation
 
+    def readCont(self, c):
+        temp = []
+
+        t = self.read(c)
+
+        #until the flag for "empty queue" (null) is raised keep reading
+        while not t is None:
+            temp.append(t)
+            t = self.read(c)
+
+        return temp
+
+    def readAll(self):
+        temp = []
+
+        #read every controller until empty using readCont
+        for c in range(self.controllers):
+            t = self.readCont(c)
+            temp.append(t)
+
+        return temp
